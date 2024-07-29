@@ -67,6 +67,38 @@ slice calculate_nft_item_address(int wc, cell state_init) {
     send_raw_message(msg.end_cell(), 64); ;; carry all the remaining value of the inbound message
 }
 
+() batch_transfer(slice sender_address, slice in_msg_body) impure {
+    const (owner_address, next_item_index, content, nft_item_code, royalty_params) = load_data();
+    throw_unless(401, equal_slices(sender_address, owner_address));
+
+    slice ds = get_data().begin_parse();
+
+    ;; int num_transfers = in_msg_body~load_uint(8);
+    int num_transfers = ds~load_uint(8);
+    throw_unless(702, slice_bits(in_msg_body) >= num_transfers * (64 + 32 + 1 + 256));
+
+    int i = 0;
+
+    do{
+
+        int nft_index = in_msg_body~load_uint(64);
+        slice new_owner_address = in_msg_body~load_msg_addr();
+
+        const transfer_msg = begin_cell()
+            .store_uint(op::transfer(), 32)
+            .store_slice(new_owner_address);
+            end_cell();
+
+        cell state_init = calculate_nft_item_state_init(nft_index,nft_item_code);
+        slice nft_address = calculate_nft_item_address(workchain(),state_init);
+
+        send_msg(nft_address, 0, op::transfer(), 0, transfer_msg, 1);
+        
+        i = i + 1;
+    }
+    until(i < num_transfers)
+}
+
 () recv_internal(cell in_msg_full, slice in_msg_body) impure {
     if (in_msg_body.slice_empty?()) { ;; ignore empty messages
         return ();  
@@ -130,6 +162,10 @@ slice calculate_nft_item_address(int wc, cell state_init) {
         return ();
     }
     
+    if (op == op::batch_transfer()) {
+        batch_transfer(sender_address, in_msg_body);
+        return ();
+    }
     
     throw(0xffff);
 }

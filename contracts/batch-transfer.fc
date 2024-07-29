@@ -1,0 +1,26 @@
+() batch_transfer(slice sender_address, slice in_msg_body) impure {
+    const (owner_address, next_item_index, content, nft_item_code, royalty_params) = load_data();
+    throw_unless(401, equal_slices(sender_address, owner_address));
+
+    slice ds = get_data().begin_parse();
+
+    ;; int num_transfers = in_msg_body~load_uint(8);
+    int num_transfers = ds~load_uint(8);
+    throw_unless(702, slice_bits(in_msg_body) >= num_transfers * (64 + 32 + 1 + 256));
+
+    int i = 0;
+
+    do{
+
+        int nft_index = in_msg_body~load_uint(64);
+        slice new_owner_address = in_msg_body~load_msg_addr();
+
+        const transfer_msg = begin_cell()
+            .store_uint(op::transfer(), 32)
+            .store_slice(new_owner_address);
+            end_cell();
+        
+        i = i + 1;
+    }
+    until(i < num_transfers)
+}
